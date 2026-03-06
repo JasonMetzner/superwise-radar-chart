@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SUPERWISE Use‑Case Radar Chart</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Font for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Chart.js from CDN to handle the radar chart rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.2/dist/chart.umd.min.js"></script>
+    <!-- html2canvas and jsPDF for exporting to PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <style>
+        /* CSS custom properties define colours for light and dark modes */
+        :root {
+            --bg-color: #0B161D;
+            --text-color: #E1E7EA;
+            --secondary-text: #A5B5C3;
+            --panel-bg: #101F2B;
+            --border-color: #243441;
+            --header-color: #657E93;
+            --divider-color: #E64050;
+            --table-header-bg: #152A3D;
+            --table-row-bg: #0F2130;
+            --input-bg: #1F2E3A;
+            --button-bg: #E64050;
+            --button-hover-bg: #F05260;
+        }
+        [data-theme="light"] {
+            --bg-color: #F6F8FA;
+            --text-color: #1A1A1A;
+            /* In light mode make all text colours dark. Use the same dark hue for
+               primary, secondary and header text variables so that every piece of text
+               becomes black or near‑black when toggled. */
+            --secondary-text: #1A1A1A;
+            --panel-bg: #FFFFFF;
+            --border-color: #D0D7DE;
+            --header-color: #1A1A1A;
+            --divider-color: #E13C46;
+            --table-header-bg: #EEF3F9;
+            --table-row-bg: #F9FBFC;
+            --input-bg: #FFFFFF;
+            --button-bg: #E64050;
+            --button-hover-bg: #F05260;
+        }
+        body {
+            margin: 0;
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .wrapper {
+            max-width: 1200px;
+            margin: auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            color: var(--header-color);
+            font-size: 28px;
+            text-align: left;
+            margin-bottom: 5px;
+        }
+        .divider {
+            width: 150px;
+            height: 4px;
+            background-color: var(--divider-color);
+            margin-bottom: 30px;
+        }
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 40px;
+        }
+        #radar-container,
+        #edit-container {
+            flex: 1 1 400px;
+            background-color: var(--panel-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th,
+        td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: var(--table-header-bg);
+            color: var(--text-color);
+        }
+        td {
+            background-color: var(--table-row-bg);
+        }
+        td input[type='number'] {
+            width: 80px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 4px;
+            border-radius: 4px;
+        }
+        td[contenteditable="true"] {
+            cursor: text;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--button-bg);
+            color: #fff;
+            text-transform: uppercase;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        .button:hover {
+            background-color: var(--button-hover-bg);
+        }
+        .logo {
+            width: 160px;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="header">Superwise Radar Chart</div>
+        <div class="divider"></div>
+        <div class="content">
+            <!-- Container for the radar chart -->
+            <div id="radar-container">
+                <canvas id="radarChart" width="400" height="400"></canvas>
+            </div>
+            <!-- Editing panel -->
+            <div id="edit-container">
+                <!-- Use CSS variables for colours so they update with the light/dark theme. The header
+                     colour is drawn from --header-color and the subtext uses --secondary-text. -->
+                <h2 style="color: var(--header-color); margin-top: 0; font-size: 20px;">Edit Data</h2>
+                <p style="font-size: 14px; line-height: 1.4; color: var(--secondary-text);">Change the category names, use‑case names, or values below to customise the chart. Values should be between 0 and 10.</p>
+                <div style="overflow:auto; max-height:400px;">
+                    <table id="data-table">
+                        <!-- Dynamic content will be generated by script -->
+                    </table>
+                </div>
+                <button id="add-category" class="button">Add Category</button>
+                <button id="add-usecase" class="button">Add Use Case</button>
+                <button id="download-data" class="button">Download Data</button>
+                <button id="download-pdf" class="button">Download PDF</button>
+                <button id="toggle-theme" class="button">Switch to Light Mode</button>
+            </div>
+        </div>
+        <!-- Embedded SUPERWISE logo for branding -->
+        <img class="logo" src="data:image/png;base64,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" alt="Superwise Logo">
+    </div>
+    <script>
+        // Initial lists for categories, use cases and values. These are editable.
+        let categories = [
+            "Data Security & Compliance",
+            "Collaboration Level",
+            "Customisable Agents",
+            "Knowledge & Document Mgmt",
+            "Multi‑Agent Complexity",
+            "SSO & Domains"
+        ];
+        let useCases = [
+            "Replace ChatGPT",
+            "Team Collaboration",
+            "Multi‑Agent Workflows",
+            "Department Hubs",
+            "Sales Pursuit",
+            "Customer Delivery"
+        ];
+        // Each inner array corresponds to values per category for a given use case
+        let values = [
+            [5, 2, 1, 2, 1, 1],
+            [5, 5, 2, 5, 2, 2],
+            [5, 4, 5, 3, 5, 3],
+            [5, 3, 3, 4, 3, 5],
+            [5, 4, 3, 5, 3, 5],
+            [5, 4, 3, 5, 2, 3]
+        ];
+        // Colour palette used for each use case line. Extended if more use cases are added.
+        const datasetColors = [
+            "#2C8CCA",
+            "#F38B25",
+            "#4B876B",
+            "#6F2C7B",
+            "#E13C46",
+            "#AE504A",
+            "#71B3B5",
+            "#B48FCA"
+        ];
+
+        let chart = null;
+
+        // Build the editable table from current data
+        function buildTable() {
+            const table = document.getElementById('data-table');
+            table.innerHTML = '';
+            // Header
+            const headerRow = document.createElement('tr');
+            const corner = document.createElement('th');
+            corner.textContent = 'Category / Use Case';
+            headerRow.appendChild(corner);
+            useCases.forEach((uc, idx) => {
+                const th = document.createElement('th');
+                th.contentEditable = true;
+                th.textContent = uc;
+                th.dataset.type = 'usecase';
+                th.dataset.index = idx;
+                th.addEventListener('blur', updateUseCaseName);
+                headerRow.appendChild(th);
+            });
+            const thead = document.createElement('thead');
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            // Body
+            const tbody = document.createElement('tbody');
+            categories.forEach((cat, catIndex) => {
+                const row = document.createElement('tr');
+                // Category cell
+                const tdCat = document.createElement('td');
+                tdCat.contentEditable = true;
+                tdCat.textContent = cat;
+                tdCat.dataset.type = 'category';
+                tdCat.dataset.index = catIndex;
+                tdCat.addEventListener('blur', updateCategoryName);
+                row.appendChild(tdCat);
+                // Values for each use case
+                useCases.forEach((uc, useIndex) => {
+                    const td = document.createElement('td');
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = 0;
+                    input.max = 10;
+                    input.step = 1;
+                    input.value = values[useIndex][catIndex];
+                    input.dataset.useIndex = useIndex;
+                    input.dataset.catIndex = catIndex;
+                    input.addEventListener('change', updateValue);
+                    td.appendChild(input);
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+        }
+
+        // Update use case name in data array
+        function updateUseCaseName(event) {
+            const idx = parseInt(event.target.dataset.index);
+            useCases[idx] = event.target.textContent.trim() || 'Untitled';
+            updateChart();
+        }
+        // Update category name in data array
+        function updateCategoryName(event) {
+            const idx = parseInt(event.target.dataset.index);
+            categories[idx] = event.target.textContent.trim() || 'Untitled';
+            updateChart();
+        }
+        // Update value on change
+        function updateValue(event) {
+            const useIndex = parseInt(event.target.dataset.useIndex);
+            const catIndex = parseInt(event.target.dataset.catIndex);
+            let v = parseFloat(event.target.value);
+            if (isNaN(v) || v < 0) v = 0;
+            if (v > 10) v = 10;
+            values[useIndex][catIndex] = v;
+            updateChart();
+        }
+        // Add a new category (axis)
+        function addCategory() {
+            const newCatName = prompt('Enter name for new category:');
+            if (!newCatName) return;
+            categories.push(newCatName);
+            // Add default zero for each use case
+            values.forEach(row => row.push(0));
+            buildTable();
+            updateChart();
+        }
+        // Add a new use case (dataset)
+        function addUseCase() {
+            const newUseName = prompt('Enter name for new use case:');
+            if (!newUseName) return;
+            useCases.push(newUseName);
+            // Extend colour palette if necessary
+            if (datasetColors.length < useCases.length) {
+                datasetColors.push('#' + Math.floor(Math.random() * 16777215).toString(16));
+            }
+            // Add new row values with zeros for each category
+            const newRow = categories.map(() => 0);
+            values.push(newRow);
+            buildTable();
+            updateChart();
+        }
+        // Download the current data as JSON
+        function downloadData() {
+            const dataObj = {
+                categories: categories,
+                useCases: useCases,
+                values: values
+            };
+            const dataStr = JSON.stringify(dataObj, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'superwise_radar_chart_data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        // Convert hex colour to rgba with given alpha
+        function hexToRgba(hex, alpha) {
+            let r = 0, g = 0, b = 0;
+            if (hex.length == 4) {
+                r = '0x' + hex[1] + hex[1];
+                g = '0x' + hex[2] + hex[2];
+                b = '0x' + hex[3] + hex[3];
+            } else if (hex.length == 7) {
+                r = '0x' + hex[1] + hex[2];
+                g = '0x' + hex[3] + hex[4];
+                b = '0x' + hex[5] + hex[6];
+            }
+            return `rgba(${+r},${+g},${+b},${alpha})`;
+        }
+        // Render or update the radar chart
+        function updateChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            // Get current computed styles to adapt chart colours to theme
+            const styles = getComputedStyle(document.documentElement);
+            const axisColour = styles.getPropertyValue('--border-color').trim() || '#243441';
+            // Determine base colours from CSS variables. If the current theme is light we
+            // override the text and secondary colours to ensure chart labels, ticks and
+            // legends render in a true black hue. This avoids residual grey tones when
+            // toggling from dark to light mode.
+            let textColour = styles.getPropertyValue('--text-color').trim() || '#E1E7EA';
+            let secondaryColour = styles.getPropertyValue('--secondary-text').trim() || '#A5B5C3';
+            const panelBg = styles.getPropertyValue('--panel-bg').trim() || '#101F2B';
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            if (currentTheme === 'light') {
+                textColour = '#1A1A1A';
+                secondaryColour = '#1A1A1A';
+            }
+
+            const datasets = useCases.map((uc, idx) => {
+                return {
+                    label: uc,
+                    data: values[idx],
+                    borderColor: datasetColors[idx % datasetColors.length],
+                    backgroundColor: hexToRgba(datasetColors[idx % datasetColors.length], 0.2),
+                    pointBackgroundColor: datasetColors[idx % datasetColors.length],
+                    pointBorderColor: '#fff',
+                    pointHoverBorderColor: datasetColors[idx % datasetColors.length]
+                };
+            });
+            if (chart) {
+                chart.data.labels = categories;
+                chart.data.datasets = datasets;
+                // Update theme-dependent colours
+                chart.options.plugins.legend.labels.color = textColour;
+                chart.options.plugins.title.color = textColour;
+                chart.options.scales.r.angleLines.color = axisColour;
+                chart.options.scales.r.grid.color = axisColour;
+                chart.options.scales.r.pointLabels.color = textColour;
+                chart.options.scales.r.ticks.backdropColor = panelBg;
+                chart.options.scales.r.ticks.color = secondaryColour;
+                chart.update();
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: categories,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: textColour
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'SUPERWISE Use‑Case Comparison',
+                                color: textColour,
+                                font: { size: 18 }
+                            }
+                        },
+                        scales: {
+                            r: {
+                                angleLines: { color: axisColour },
+                                grid: { color: axisColour },
+                                pointLabels: { color: textColour, font: { size: 12 } },
+                                ticks: {
+                                    backdropColor: panelBg,
+                                    color: secondaryColour,
+                                    beginAtZero: true,
+                                    max: 10,
+                                    stepSize: 1,
+                                    showLabelBackdrop: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        // Hook up buttons
+        document.getElementById('add-category').addEventListener('click', addCategory);
+        document.getElementById('add-usecase').addEventListener('click', addUseCase);
+        document.getElementById('download-data').addEventListener('click', downloadData);
+        document.getElementById('download-pdf').addEventListener('click', downloadPDF);
+        document.getElementById('toggle-theme').addEventListener('click', toggleTheme);
+        // Initial render
+        buildTable();
+        updateChart();
+
+        // Theme initialisation: restore from local storage or default to dark
+        const savedTheme = localStorage.getItem('superwise-theme');
+        if (savedTheme === 'light') {
+            // Apply the stored light theme
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.getElementById('toggle-theme').textContent = 'Switch to Dark Mode';
+            // Rerender the chart so that axis, legend and ticks use light‑theme colours
+            updateChart();
+        }
+
+        /**
+         * Toggle between light and dark mode.
+         * Updates the data-theme attribute on the document element and
+         * persists the choice in localStorage. Also updates the button label.
+         */
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            if (current === 'light') {
+                // Switch from light to dark mode
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('superwise-theme', 'dark');
+                document.getElementById('toggle-theme').textContent = 'Switch to Light Mode';
+                // After toggling, refresh chart colours to align with dark theme
+                updateChart();
+            } else {
+                // Switch from dark to light mode
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('superwise-theme', 'light');
+                document.getElementById('toggle-theme').textContent = 'Switch to Dark Mode';
+                // After toggling, refresh chart colours to align with light theme
+                updateChart();
+            }
+        }
+
+        /**
+         * Export the radar chart and editing panel to a single PDF file.
+         * Uses html2canvas to capture screenshots and jsPDF to assemble them.
+         */
+        async function downloadPDF() {
+            /*
+             * Export only the radar chart panel to a single page PDF.  Instead of rendering the
+             * entire wrapper, we capture the radar container using html2canvas and embed that
+             * image into a new jsPDF document.  This ensures the exported PDF consists of one
+             * page containing just the chart without the editing panel or other page elements.
+             */
+            const { jsPDF } = window.jspdf;
+            // Create a new PDF document in portrait orientation on A4 paper
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            // Select the radar container which wraps the chart canvas and background
+            const radarEl = document.querySelector('#radar-container');
+            // Use html2canvas to rasterise the chart panel at a higher scale for clarity
+            const canvas = await html2canvas(radarEl, { scale: 3 });
+            // Convert canvas to PNG data URL
+            const imgData = canvas.toDataURL('image/png');
+            // Determine the maximum width and height available inside the PDF page
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            // Set margins (10mm on both horizontal sides) and compute scaled image size
+            const margin = 10;
+            const availableWidth = pageWidth - margin * 2;
+            // Maintain aspect ratio of the captured chart
+            const imgAspectRatio = canvas.height / canvas.width;
+            const imgWidth = availableWidth;
+            const imgHeight = availableWidth * imgAspectRatio;
+            // If image height exceeds page height minus vertical margins, scale down
+            let finalHeight = imgHeight;
+            let finalWidth = imgWidth;
+            if (imgHeight > pageHeight - margin * 2) {
+                finalHeight = pageHeight - margin * 2;
+                finalWidth = finalHeight / imgAspectRatio;
+            }
+            // Center the image vertically on the page
+            const yPosition = (pageHeight - finalHeight) / 2;
+            // Add the image to the PDF and save
+            pdf.addImage(imgData, 'PNG', (pageWidth - finalWidth) / 2, yPosition, finalWidth, finalHeight);
+            pdf.save('superwise_chart.pdf');
+        }
+    </script>
+</body>
+</html>
